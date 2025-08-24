@@ -5111,18 +5111,6 @@
             
             console.log('Mobile interactions setup complete');
         }
-        
-        // Desktop-specific enhancements
-        if (!beatMachine.isMobile && beatMachine && beatMachine.markovChain) {
-            console.log('🖥️ Desktop mode: Maximum evolution frequency and visual effects enabled');
-            
-            // Add desktop-specific evolution logging
-            const originalEvolveNetwork = beatMachine.markovChain.evolveNetwork;
-            beatMachine.markovChain.evolveNetwork = function() {
-                console.log('🖥️ Desktop evolution triggered');
-                return originalEvolveNetwork.call(this);
-            };
-        }
 
         // ============================================================================
         // Initialize the Beat Generation Machine
@@ -5144,6 +5132,18 @@
                 // Setup mobile-specific interactions
                 if (beatMachine.isMobile || beatMachine.isTouch) {
                     setupMobileInteractions();
+                }
+                
+                // Desktop-specific enhancements (after beatMachine is initialized)
+                if (!beatMachine.isMobile && beatMachine.markovChain) {
+                    console.log('🖥️ Desktop mode: Maximum evolution frequency and visual effects enabled');
+                    
+                    // Add desktop-specific evolution logging
+                    const originalEvolveNetwork = beatMachine.markovChain.evolveNetwork;
+                    beatMachine.markovChain.evolveNetwork = function() {
+                        console.log('🖥️ Desktop evolution triggered');
+                        return originalEvolveNetwork.call(this);
+                    };
                 }
                 
                 // Setup audio activation button
