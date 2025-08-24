@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beat Generation Interactive Poetry Machine - Web Edition</title>
+    
+    <!-- Professional NLP Libraries for Semantic Poetry Processing -->
+    <script src="https://unpkg.com/compromise@14.14.4/builds/compromise.js"></script>
+    <!-- Synonyms Library - 27,779 words with comprehensive synonym database -->
+    <script src="https://unpkg.com/synonyms@1.0.1/dist/synonyms.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gpu.js@latest/dist/gpu-browser.min.js"></script>
     <style>
         * {
@@ -882,6 +887,12 @@
              initPoetry() {
                  this.poetryEngine = new PoetryEngine();
                  this.currentPoetryLine = 0;
+                  
+                  // Connect poetry engine to dendritic memory for NLP evolution
+                  if (this.markovChain) {
+                      this.poetryEngine.setMemoryStructure(this.markovChain);
+                      this.markovChain.poetryEngineRef = this.poetryEngine; // Reference for evolution notifications
+                  }
              }
             
             initInteraction() {
@@ -2786,13 +2797,14 @@
                              this.audioEngine.currentBPM = this.params.tempo;
                              this.audioEngine.beatInterval = 60 / this.audioEngine.currentBPM;
                              break;
-                         case 'masterVolume':
-                             if (this.audioEngine.masterGain) {
-                                 this.audioEngine.masterGain.gain.setValueAtTime(
-                                     this.params.masterVolume, 
-                                     this.audioContext.currentTime
-                                 );
-                             }
+                                                 case 'masterVolume':
+                            if (this.audioEngine.masterGain) {
+                                const safeVolume = this.audioEngine.validateAudioParam(this.params.masterVolume, 0.5, 0, 1);
+                                this.audioEngine.masterGain.gain.setValueAtTime(
+                                    safeVolume, 
+                                    this.audioContext.currentTime
+                                );
+                            }
                              break;
                      }
                  }
@@ -3396,6 +3408,11 @@
                  }
                  
                  console.log(`🔥 ${isDesktop ? 'DESKTOP' : 'MOBILE'} evolutionary changes: ${randomNodes.length} activated, ${musicalNodes.length} musical changes, ${evolvingNodes.length} generations increased`);
+                 
+                 // Notify poetry engine to clear NLP cache for new evolution
+                 if (this.poetryEngineRef && this.poetryEngineRef.clearEvolutionCache) {
+                     this.poetryEngineRef.clearEvolutionCache();
+                 }
              }
              
              updateNodeFitness() {
@@ -4315,21 +4332,36 @@
             }
             
             playNote(frequency, duration, waveType = 'sine', volume = 0.1) {
+                // Validate and sanitize audio parameters
+                const safeFrequency = this.validateAudioParam(frequency, 440, 20, 20000); // Default 440Hz, range 20Hz-20kHz
+                const safeDuration = this.validateAudioParam(duration, 0.5, 0.01, 10); // Default 0.5s, range 0.01s-10s
+                const safeVolume = this.validateAudioParam(volume, 0.1, 0, 1); // Default 0.1, range 0-1
+                
+                if (safeFrequency !== frequency) {
+                    console.warn(`🔧 Audio: Fixed invalid frequency ${frequency} → ${safeFrequency}`);
+                }
+                if (safeDuration !== duration) {
+                    console.warn(`🔧 Audio: Fixed invalid duration ${duration} → ${safeDuration}`);
+                }
+                if (safeVolume !== volume) {
+                    console.warn(`🔧 Audio: Fixed invalid volume ${volume} → ${safeVolume}`);
+                }
+                
                 const oscillator = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
                 
                 oscillator.type = waveType;
-                oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(safeFrequency, this.audioContext.currentTime);
                 
                 gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+                gainNode.gain.linearRampToValueAtTime(safeVolume, this.audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + safeDuration);
                 
                 oscillator.connect(gainNode);
                 gainNode.connect(this.analyser);
                 
                 oscillator.start(this.audioContext.currentTime);
-                oscillator.stop(this.audioContext.currentTime + duration);
+                oscillator.stop(this.audioContext.currentTime + safeDuration);
                 
                 this.oscillators.push(oscillator);
                 
@@ -4340,6 +4372,17 @@
                         this.oscillators.splice(index, 1);
                     }
                 };
+            }
+            
+            // Validate and sanitize audio parameters to prevent Web Audio API errors
+            validateAudioParam(value, defaultValue, minValue, maxValue) {
+                // Check if value is finite and not NaN
+                if (!isFinite(value) || isNaN(value) || value === null || value === undefined) {
+                    return defaultValue;
+                }
+                
+                // Clamp value to valid range
+                return Math.max(minValue, Math.min(maxValue, value));
             }
             
             stopAllOscillators() {
@@ -4412,7 +4455,7 @@
             
             adjustVolume(delta) {
                 const currentVolume = this.masterGain.gain.value;
-                const newVolume = Math.max(0, Math.min(1, currentVolume + delta));
+                const newVolume = this.validateAudioParam(currentVolume + delta, 0.5, 0, 1);
                 this.masterGain.gain.setValueAtTime(newVolume, this.audioContext.currentTime);
             }
             
@@ -4703,12 +4746,682 @@
         }
 
         // ============================================================================
+        // Professional NLP Library Integration (synonyms + compromise.js)
+        // ============================================================================
+        class ProfessionalNLPLibrary {
+            constructor() {
+                this.initializePOSPatterns();
+                this.initializeSemanticCategories();
+                this.checkLibraryAvailability();
+                console.log('📚 Professional NLP Library initialized');
+            }
+            
+            // Check if professional libraries are loaded
+            checkLibraryAvailability() {
+                // Check synonyms library (27,779 words)
+                this.synonymsAvailable = typeof synonyms !== 'undefined' || typeof window.synonyms !== 'undefined';
+                this.synonymsLib = this.synonymsAvailable ? (synonyms || window.synonyms) : null;
+                
+                // Check compromise.js library
+                this.compromiseAvailable = typeof nlp !== 'undefined' || typeof window.nlp !== 'undefined';
+                this.nlpLib = this.compromiseAvailable ? (nlp || window.nlp) : null;
+                
+                console.log(`📚 Synonyms Library (27,779 words): ${this.synonymsAvailable ? '✅ Available' : '❌ Not loaded'}`);
+                console.log(`📚 Compromise.js NLP: ${this.compromiseAvailable ? '✅ Available' : '❌ Not loaded'}`);
+                
+                if (this.synonymsAvailable) {
+                    // Test the synonyms library
+                    try {
+                        const testResult = this.synonymsLib('good');
+                        console.log('🧪 Synonyms test:', testResult);
+                    } catch (error) {
+                        console.warn('⚠️ Synonyms library test failed:', error);
+                        this.synonymsAvailable = false;
+                    }
+                }
+            }
+            
+            // Get professional synonyms using the real synonyms library (27,779 words)
+            getProfessionalSynonyms(word) {
+                if (!this.synonymsAvailable) {
+                    return null;
+                }
+                
+                try {
+                    const result = this.synonymsLib(word.toLowerCase());
+                    console.log(`📚 Professional synonyms for "${word}":`, result);
+                    return result;
+                } catch (error) {
+                    console.warn(`⚠️ Error getting synonyms for "${word}":`, error);
+                    return null;
+                }
+            }
+            
+            // Initialize Part-of-Speech patterns for accurate classification
+            initializePOSPatterns() {
+                this.posPatterns = {
+                    // Verb patterns
+                    verbSuffixes: ['ing', 'ed', 'er', 'es', 's', 'en', 'ate', 'ify', 'ize'],
+                    verbPrefixes: ['re', 'un', 'de', 'dis', 'over', 'under', 'out', 'up'],
+                    
+                    // Noun patterns  
+                    nounSuffixes: ['tion', 'sion', 'ness', 'ment', 'ity', 'ty', 'er', 'or', 'ist', 'ism'],
+                    nounPrefixes: ['sub', 'super', 'anti', 'pro', 'counter', 'inter', 'intra', 'extra'],
+                    
+                    // Adjective patterns
+                    adjectiveSuffixes: ['ful', 'less', 'ous', 'ious', 'eous', 'ive', 'able', 'ible', 'al', 'ic'],
+                    adjectivePrefixes: ['un', 'in', 'im', 'ir', 'il', 'non', 'dis', 'mis'],
+                    
+                    // Adverb patterns
+                    adverbSuffixes: ['ly', 'ward', 'wise', 'like'],
+                    
+                    // Common function words (don't synonymize)
+                    functionWords: ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'among', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them']
+                };
+            }
+            
+            // Initialize semantic categories for context-aware selection
+            initializeSemanticCategories() {
+                this.semanticCategories = {
+                    emotion: ['love', 'hate', 'joy', 'sadness', 'anger', 'fear', 'surprise', 'disgust', 'trust', 'anticipation'],
+                    movement: ['walk', 'run', 'dance', 'flow', 'drift', 'glide', 'rush', 'crawl', 'leap', 'soar'],
+                    perception: ['see', 'hear', 'feel', 'taste', 'smell', 'touch', 'sense', 'perceive', 'notice', 'observe'],
+                    creation: ['write', 'paint', 'compose', 'build', 'create', 'make', 'craft', 'forge', 'construct', 'design'],
+                    destruction: ['destroy', 'break', 'shatter', 'demolish', 'ruin', 'devastate', 'obliterate', 'annihilate', 'wreck', 'crush'],
+                    time: ['moment', 'instant', 'eternity', 'forever', 'always', 'never', 'now', 'then', 'past', 'future'],
+                    space: ['here', 'there', 'everywhere', 'nowhere', 'above', 'below', 'inside', 'outside', 'near', 'far'],
+                    intensity: ['burning', 'blazing', 'glowing', 'pulsing', 'throbbing', 'radiating', 'shimmering', 'flickering', 'sparkling', 'gleaming']
+                };
+            }
+            
+            // Determine part of speech using patterns and context
+            determinePOS(word, context = '') {
+                const lowerWord = word.toLowerCase();
+                
+                // Check function words first
+                if (this.posPatterns.functionWords.includes(lowerWord)) {
+                    return 'function';
+                }
+                
+                // Check verb patterns
+                if (this.posPatterns.verbSuffixes.some(suffix => lowerWord.endsWith(suffix)) ||
+                    this.posPatterns.verbPrefixes.some(prefix => lowerWord.startsWith(prefix))) {
+                    return 'verb';
+                }
+                
+                // Check noun patterns
+                if (this.posPatterns.nounSuffixes.some(suffix => lowerWord.endsWith(suffix)) ||
+                    this.posPatterns.nounPrefixes.some(prefix => lowerWord.startsWith(prefix))) {
+                    return 'noun';
+                }
+                
+                // Check adjective patterns
+                if (this.posPatterns.adjectiveSuffixes.some(suffix => lowerWord.endsWith(suffix)) ||
+                    this.posPatterns.adjectivePrefixes.some(prefix => lowerWord.startsWith(prefix))) {
+                    return 'adjective';
+                }
+                
+                // Check adverb patterns
+                if (this.posPatterns.adverbSuffixes.some(suffix => lowerWord.endsWith(suffix))) {
+                    return 'adverb';
+                }
+                
+                // Check professional synonyms library for POS hints
+                if (this.synonymsAvailable) {
+                    try {
+                        const synonymResult = this.synonymsLib(lowerWord);
+                        if (synonymResult) {
+                            if (synonymResult.v && synonymResult.v.length > 0) return 'verb';
+                            if (synonymResult.n && synonymResult.n.length > 0) return 'noun';
+                            if (synonymResult.adj && synonymResult.adj.length > 0) return 'adjective';
+                            if (synonymResult.adv && synonymResult.adv.length > 0) return 'adverb';
+                        }
+                    } catch (error) {
+                        // Continue with other methods if synonyms lookup fails
+                    }
+                }
+                
+                // Default classification based on position and context
+                return 'unknown';
+            }
+            
+            // Get synonyms using professional library (27,779 words)
+            getSynonyms(word, pos = null, semanticContext = null) {
+                // First try professional synonyms library
+                const professionalSynonyms = this.getProfessionalSynonyms(word);
+                
+                if (professionalSynonyms) {
+                    // Extract synonyms based on part of speech
+                    let synonyms = [];
+                    
+                    // The synonyms library returns: { n: [...], v: [...], adj: [...], adv: [...] }
+                    if (professionalSynonyms.n) synonyms = synonyms.concat(professionalSynonyms.n);
+                    if (professionalSynonyms.v) synonyms = synonyms.concat(professionalSynonyms.v);
+                    if (professionalSynonyms.adj) synonyms = synonyms.concat(professionalSynonyms.adj);
+                    if (professionalSynonyms.adv) synonyms = synonyms.concat(professionalSynonyms.adv);
+                    
+                    // Remove duplicates and original word
+                    synonyms = [...new Set(synonyms)].filter(syn => syn.toLowerCase() !== word.toLowerCase());
+                    
+                    if (synonyms.length > 0) {
+                        console.log(`📚 Found ${synonyms.length} professional synonyms for "${word}"`);
+                        return synonyms;
+                    }
+                }
+                
+                // Fallback: return original word if no synonyms found
+                return [word];
+            }
+            
+            // Select best synonym based on semantic context and musical note
+            selectContextualSynonym(word, synonyms, semanticField, memoryState) {
+                if (synonyms.length <= 1) return synonyms[0] || word;
+                
+                // Score synonyms based on semantic field alignment
+                const scoredSynonyms = synonyms.map(synonym => {
+                    let score = Math.random(); // Base randomness
+                    
+                    // Boost score if synonym aligns with semantic field
+                    semanticField.forEach(fieldWord => {
+                        if (synonym.includes(fieldWord.substring(0, 3)) || 
+                            fieldWord.includes(synonym.substring(0, 3))) {
+                            score += 0.5;
+                        }
+                    });
+                    
+                    // Boost score based on memory state complexity
+                    if (memoryState.complexity > 0.7 && synonym.length > word.length) {
+                        score += 0.3; // Prefer longer, more complex words for complex states
+                    }
+                    
+                    // Boost score based on generation (evolution prefers certain patterns)
+                    if (memoryState.avgGeneration >= 2 && 
+                        (synonym.includes('trans') || synonym.includes('meta') || synonym.includes('ultra'))) {
+                        score += 0.4;
+                    }
+                    
+                    return { word: synonym, score: score };
+                });
+                
+                // Sort by score and return best match
+                scoredSynonyms.sort((a, b) => b.score - a.score);
+                return scoredSynonyms[0].word;
+            }
+            
+            // Comprehensive word replacement with NLP analysis
+            replaceWordWithSynonym(word, context, semanticField, memoryState) {
+                const pos = this.determinePOS(word, context);
+                
+                // Don't replace function words
+                if (pos === 'function') {
+                    return word;
+                }
+                
+                const synonyms = this.getSynonyms(word, pos, context);
+                const bestSynonym = this.selectContextualSynonym(word, synonyms, semanticField, memoryState);
+                
+                console.log(`📚 NLP: "${word}" (${pos}) → "${bestSynonym}" [${synonyms.length} options]`);
+                return bestSynonym;
+            }
+        }
+
+        // ============================================================================
+        // Advanced NLP Processor for Semantic Poetry Evolution
+        // ============================================================================
+        class SemanticPoetryProcessor {
+            constructor() {
+                // Initialize professional NLP library (synonyms + compromise.js)
+                this.nlpLibrary = new ProfessionalNLPLibrary();
+                
+                // Verify compromise.js is loaded for advanced features
+                console.log('🔍 Checking for compromise.js library...');
+                console.log('typeof nlp:', typeof nlp);
+                console.log('window.nlp:', typeof window.nlp);
+                
+                if (typeof nlp === 'undefined' && typeof window.nlp === 'undefined') {
+                    console.log('⚠️ Compromise.js not available - using comprehensive fallback NLP');
+                    this.nlpAvailable = false;
+                    this.fallbackMode = true;
+                } else {
+                    // Use global nlp or window.nlp for advanced features
+                    this.nlp = typeof nlp !== 'undefined' ? nlp : window.nlp;
+                    this.nlpAvailable = true;
+                    this.fallbackMode = false;
+                    console.log('✅ Compromise.js + Comprehensive NLP library loaded');
+                    console.log('🧪 Testing NLP:', this.nlp('hello world').text());
+                }
+                
+                // Semantic evolution cache tied to dendritic memory
+                this.evolutionCache = new Map();
+                this.semanticMemory = new Map();
+                this.memoryStructure = null;
+                
+                // Comprehensive linguistic transformation patterns
+                this.transformationPatterns = {
+                    // Musical note influences semantic fields
+                    semanticFields: {
+                        0: ['cosmic', 'infinite', 'stellar', 'void', 'quantum'],      // C - Cosmic
+                        1: ['digital', 'electric', 'neural', 'synthetic', 'coded'],   // C# - Digital
+                        2: ['urban', 'concrete', 'neon', 'metallic', 'industrial'],   // D - Urban
+                        3: ['organic', 'flowing', 'natural', 'breathing', 'living'],  // D# - Organic
+                        4: ['emotional', 'burning', 'passionate', 'intense', 'raw'],  // E - Emotional
+                        5: ['mystical', 'ethereal', 'transcendent', 'sacred', 'divine'], // F - Mystical
+                        6: ['temporal', 'fleeting', 'momentary', 'eternal', 'timeless'], // F# - Temporal
+                        7: ['harmonic', 'resonant', 'melodic', 'rhythmic', 'sonic'],  // G - Harmonic
+                        8: ['luminous', 'radiant', 'glowing', 'brilliant', 'shining'], // G# - Luminous
+                        9: ['kinetic', 'moving', 'dynamic', 'flowing', 'rushing'],    // A - Kinetic
+                        10: ['cerebral', 'thoughtful', 'conscious', 'aware', 'mindful'], // A# - Cerebral
+                        11: ['primal', 'essential', 'fundamental', 'core', 'basic']   // B - Primal
+                    },
+                    
+                    // Syntactic transformation patterns
+                    syntacticPatterns: {
+                        // Subject-Verb-Object variations
+                        svo: ['$subject $verb $object', '$object, $subject $verb', '$verb $subject $object'],
+                        // Prepositional phrase variations  
+                        prepositional: ['$prep $noun', 'within $noun', 'through $noun', 'beyond $noun', 'beneath $noun'],
+                        // Compound structures
+                        compound: ['$word1 and $word2', '$word1, $word2', '$word1 or $word2', '$word1 with $word2'],
+                        // Temporal markers
+                        temporal: ['while', 'when', 'as', 'during', 'throughout', 'amid', 'within']
+                    },
+                    
+                    // Morphological variations (meaning-preserving)
+                    morphological: {
+                        // Verb forms
+                        verbs: {
+                            'see': ['witness', 'observe', 'perceive', 'behold', 'glimpse'],
+                            'write': ['inscribe', 'compose', 'craft', 'pen', 'scribe'],
+                            'move': ['flow', 'drift', 'glide', 'traverse', 'navigate'],
+                            'burn': ['blaze', 'ignite', 'kindle', 'smolder', 'flicker'],
+                            'destroy': ['shatter', 'dissolve', 'fragment', 'disintegrate', 'unmake'],
+                            'create': ['forge', 'birth', 'manifest', 'conjure', 'weave'],
+                            'love': ['cherish', 'adore', 'treasure', 'embrace', 'revere']
+                        },
+                        
+                        // Noun variations
+                        nouns: {
+                            'mind': ['consciousness', 'psyche', 'intellect', 'awareness', 'cognition'],
+                            'heart': ['soul', 'spirit', 'essence', 'core', 'center'],
+                            'eye': ['gaze', 'vision', 'sight', 'perception', 'lens'],
+                            'hand': ['grasp', 'touch', 'reach', 'extension', 'appendage'],
+                            'voice': ['utterance', 'expression', 'resonance', 'tone', 'sound'],
+                            'dream': ['vision', 'reverie', 'fantasy', 'imagination', 'aspiration'],
+                            'street': ['pathway', 'avenue', 'thoroughfare', 'passage', 'corridor']
+                        },
+                        
+                        // Adjective intensities (semantic gradations)
+                        adjectives: {
+                            'mad': ['frenzied', 'delirious', 'ecstatic', 'wild', 'untamed'],
+                            'beautiful': ['sublime', 'radiant', 'luminous', 'exquisite', 'transcendent'],
+                            'dark': ['shadowed', 'obscured', 'veiled', 'hidden', 'mysterious'],
+                            'bright': ['brilliant', 'blazing', 'incandescent', 'luminescent', 'gleaming'],
+                            'old': ['ancient', 'timeless', 'eternal', 'weathered', 'seasoned'],
+                            'new': ['nascent', 'emerging', 'fresh', 'virgin', 'untouched']
+                        }
+                    },
+                    
+                    // Stylistic transformations
+                    stylistic: {
+                        // Poetic devices
+                        devices: ['alliteration', 'assonance', 'metaphor', 'synesthesia', 'personification'],
+                        // Rhythm patterns
+                        rhythms: ['iambic', 'trochaic', 'anapestic', 'dactylic', 'spondaic'],
+                        // Tonal shifts
+                        tones: ['contemplative', 'ecstatic', 'melancholic', 'urgent', 'transcendent']
+                    }
+                };
+            }
+            
+            // Connect to dendritic memory structure
+            setMemoryStructure(memoryStructure) {
+                this.memoryStructure = memoryStructure;
+                console.log('🧠 NLP processor connected to dendritic memory');
+            }
+            
+            // Generate semantically evolved derivative based on dendritic state
+            generateSemanticDerivative(originalLine, evolutionCycle) {
+                if (!this.nlpAvailable || !this.memoryStructure) {
+                    return originalLine;
+                }
+                
+                // Create cache key based on memory state
+                const cacheKey = this.createMemoryCacheKey(originalLine, evolutionCycle);
+                
+                // Check evolution cache
+                if (this.evolutionCache.has(cacheKey)) {
+                    return this.evolutionCache.get(cacheKey);
+                }
+                
+                // Analyze dendritic memory state
+                const memoryState = this.analyzeMemoryState();
+                
+                // Parse original line with NLP (or use fallback)
+                let derivative;
+                if (this.fallbackMode) {
+                    // Use fallback processing
+                    derivative = this.applyMemoryTransformations(originalLine, memoryState);
+                } else {
+                    // Use compromise.js
+                    const doc = this.nlp(originalLine);
+                    derivative = this.applyMemoryTransformations(doc, memoryState);
+                }
+                
+                // Cache the result
+                this.evolutionCache.set(cacheKey, derivative);
+                
+                console.log(`🔄 NLP Evolution: "${originalLine}" → "${derivative}"`);
+                
+                return derivative;
+            }
+            
+            // Analyze current dendritic memory state for NLP guidance
+            analyzeMemoryState() {
+                const activeNodes = this.memoryStructure.dendriticNodes.filter(n => n.activation > n.threshold);
+                
+                if (activeNodes.length === 0) {
+                    return { complexity: 0, dominantNote: 0, avgGeneration: 0, fitness: 0 };
+                }
+                
+                // Calculate memory metrics
+                const avgMusicalNote = activeNodes.reduce((sum, n) => sum + (n.musicalNote || 0), 0) / activeNodes.length;
+                const avgGeneration = activeNodes.reduce((sum, n) => sum + (n.generation || 0), 0) / activeNodes.length;
+                const avgFitness = activeNodes.reduce((sum, n) => sum + (n.fitness || 0), 0) / activeNodes.length;
+                const complexity = Math.min(1, activeNodes.length / this.memoryStructure.maxNodes);
+                
+                return {
+                    complexity: complexity,
+                    dominantNote: Math.round(avgMusicalNote) % 12,
+                    avgGeneration: avgGeneration,
+                    fitness: avgFitness,
+                    activeNodeCount: activeNodes.length,
+                    evolutionCycle: this.memoryStructure.evolutionCycle
+                };
+            }
+            
+            // Apply memory-driven NLP transformations
+            applyMemoryTransformations(doc, memoryState) {
+                let result = doc.text();
+                
+                // Semantic field substitution based on dominant musical note
+                const semanticField = this.transformationPatterns.semanticFields[memoryState.dominantNote];
+                const adjectives = doc.adjectives().out('array');
+                
+                adjectives.forEach(adj => {
+                    if (Math.random() < memoryState.complexity * 0.5) {
+                        const replacement = semanticField[Math.floor(Math.random() * semanticField.length)];
+                        result = result.replace(new RegExp(`\\b${adj}\\b`, 'i'), replacement);
+                    }
+                });
+                
+                // Generation-based evolution
+                if (memoryState.avgGeneration >= 2) {
+                    const verbs = doc.verbs().out('array');
+                    if (verbs.length > 0 && Math.random() < 0.3) {
+                        const verb = verbs[0];
+                        const evolved = ['evolves', 'transforms', 'transcends', 'emerges'][Math.floor(Math.random() * 4)];
+                        result = result.replace(verb, evolved);
+                    }
+                }
+                
+                return result;
+            }
+            
+            // Create memory-based cache key
+            createMemoryCacheKey(line, evolutionCycle) {
+                const memoryState = this.analyzeMemoryState();
+                return `${line}_${evolutionCycle}_${memoryState.dominantNote}_${Math.floor(memoryState.avgGeneration)}`;
+            }
+            
+            // Initialize fallback NLP processing when compromise.js isn't available
+            initializeFallbackNLP() {
+                console.log('🔧 Initializing fallback NLP processing');
+                this.nlpAvailable = true; // Enable fallback processing
+                this.fallbackMode = true;
+            }
+            
+            // Fallback NLP processing using basic JavaScript
+            fallbackNLPProcessing(text, memoryState) {
+                console.log('🔄 Using fallback NLP processing');
+                
+                const semanticField = this.transformationPatterns.semanticFields[memoryState.dominantNote];
+                let result = text;
+                let transformationApplied = false;
+                
+                // GUARANTEED transformation 1: Replace common adjectives/descriptors
+                const commonWords = ['best', 'mad', 'hysterical', 'naked', 'burning', 'starving', 'destroyed', 'ancient', 'holy', 'beautiful', 'dark', 'bright', 'old', 'new', 'great', 'small', 'long', 'short'];
+                commonWords.forEach(word => {
+                    if (text.toLowerCase().includes(word)) {
+                        const replacement = semanticField[Math.floor(Math.random() * semanticField.length)];
+                        result = result.replace(new RegExp(`\\b${word}\\b`, 'i'), replacement);
+                        transformationApplied = true;
+                        console.log(`🔄 Replaced "${word}" with "${replacement}"`);
+                    }
+                });
+                
+                // GUARANTEED transformation 2: Add semantic prefix to first noun
+                if (!transformationApplied || Math.random() < 0.7) {
+                    const nouns = ['minds', 'generation', 'streets', 'letters', 'dreams', 'thoughts', 'words', 'souls', 'hearts', 'eyes', 'hands', 'voices'];
+                    for (const noun of nouns) {
+                        if (result.toLowerCase().includes(noun)) {
+                            const prefix = semanticField[Math.floor(Math.random() * semanticField.length)];
+                            result = result.replace(new RegExp(`\\b${noun}\\b`, 'i'), `${prefix} ${noun}`);
+                            transformationApplied = true;
+                            console.log(`🔄 Added prefix "${prefix}" to "${noun}"`);
+                            break;
+                        }
+                    }
+                }
+                
+                // GUARANTEED transformation 3: Evolution-based verb replacement
+                if (memoryState.avgGeneration >= 1 || !transformationApplied) {
+                    const verbs = ['write', 'saw', 'dragging', 'looking', 'burning', 'destroyed', 'flowing', 'moving', 'dancing', 'singing', 'crying', 'laughing'];
+                    const evolvedVerbs = ['evolves', 'transforms', 'transcends', 'emerges', 'mutates', 'crystallizes', 'resonates', 'pulses'];
+                    
+                    for (const verb of verbs) {
+                        if (result.toLowerCase().includes(verb)) {
+                            const evolved = evolvedVerbs[Math.floor(Math.random() * evolvedVerbs.length)];
+                            result = result.replace(new RegExp(`\\b${verb}\\b`, 'i'), evolved);
+                            transformationApplied = true;
+                            console.log(`🔄 Evolved "${verb}" to "${evolved}"`);
+                            break;
+                        }
+                    }
+                }
+                
+                // FALLBACK: If no transformation applied, add semantic modifier
+                if (!transformationApplied) {
+                    const modifier = semanticField[Math.floor(Math.random() * semanticField.length)];
+                    result = `${modifier} ${result}`;
+                    console.log(`🔄 Added fallback modifier "${modifier}"`);
+                }
+                
+                return result;
+            }
+            
+            // Comprehensive NLP transformations - mutate ALL linguistic aspects
+            applyMemoryTransformations(doc, memoryState) {
+                // Use fallback processing if compromise.js isn't available
+                if (this.fallbackMode) {
+                    return this.fallbackNLPProcessing(doc, memoryState);
+                }
+                
+                let result = doc.text();
+                const semanticField = this.transformationPatterns.semanticFields[memoryState.dominantNote];
+                
+                console.log(`🧬 COMPREHENSIVE NLP MUTATION - Semantic field ${memoryState.dominantNote}:`, semanticField);
+                
+                // LAYER 1: Morphological Mutations (meaning-preserving synonyms)
+                result = this.applyMorphologicalMutations(result, memoryState);
+                
+                // LAYER 2: Syntactic Restructuring
+                result = this.applySyntacticRestructuring(result, memoryState);
+                
+                // LAYER 3: Semantic Field Integration
+                result = this.applySemanticFieldMutations(result, semanticField, memoryState);
+                
+                // LAYER 4: Stylistic Transformations
+                result = this.applyStylisticTransformations(result, memoryState);
+                
+                // LAYER 5: Generational Evolution Markers
+                result = this.applyGenerationalEvolution(result, memoryState);
+                
+                console.log(`🔄 FINAL MUTATION: "${doc.text()}" → "${result}"`);
+                return result;
+            }
+            
+            // LAYER 1: Morphological mutations using comprehensive NLP library
+            applyMorphologicalMutations(text, memoryState) {
+                let result = text;
+                const semanticField = this.transformationPatterns.semanticFields[memoryState.dominantNote];
+                const words = text.split(/\s+/);
+                
+                // Process each word through NLP library
+                const mutatedWords = words.map(word => {
+                    // Clean word (remove punctuation for analysis)
+                    const cleanWord = word.replace(/[^\w]/g, '');
+                    const punctuation = word.replace(/\w/g, '');
+                    
+                    if (cleanWord.length < 2) return word; // Skip very short words
+                    
+                    // Use NLP library for intelligent synonym replacement
+                    const synonym = this.nlpLibrary.replaceWordWithSynonym(
+                        cleanWord, 
+                        text, 
+                        semanticField, 
+                        memoryState
+                    );
+                    
+                    // Preserve original punctuation
+                    return synonym + punctuation;
+                });
+                
+                result = mutatedWords.join(' ');
+                console.log(`🧬 MORPHOLOGICAL LAYER: Applied NLP synonymization`);
+                return result;
+            }
+            
+            // LAYER 2: Syntactic restructuring (sentence patterns)
+            applySyntacticRestructuring(text, memoryState) {
+                let result = text;
+                
+                // Apply temporal marker variations
+                const temporalMarkers = this.transformationPatterns.syntacticPatterns.temporal;
+                temporalMarkers.forEach(marker => {
+                    if (result.toLowerCase().includes(marker)) {
+                        const newMarker = temporalMarkers[Math.floor(Math.random() * temporalMarkers.length)];
+                        if (marker !== newMarker) {
+                            result = result.replace(new RegExp(`\\b${marker}\\b`, 'i'), newMarker);
+                            console.log(`🔄 SYNTAX: "${marker}" → "${newMarker}"`);
+                        }
+                    }
+                });
+                
+                // Restructure compound phrases
+                if (memoryState.complexity > 0.5) {
+                    // Add conjunctive variations
+                    if (result.includes(' and ')) {
+                        const conjunctions = [' with ', ', ', ' or ', ' alongside '];
+                        const newConj = conjunctions[Math.floor(Math.random() * conjunctions.length)];
+                        result = result.replace(' and ', newConj);
+                        console.log(`🔄 SYNTAX: "and" → "${newConj.trim()}"`);
+                    }
+                }
+                
+                return result;
+            }
+            
+            // LAYER 3: Semantic field integration (thematic coherence)
+            applySemanticFieldMutations(text, semanticField, memoryState) {
+                let result = text;
+                
+                // Inject semantic field modifiers based on network activity
+                const words = result.split(' ');
+                const targetIndex = Math.floor(Math.random() * words.length);
+                
+                if (Math.random() < memoryState.complexity) {
+                    const semanticModifier = semanticField[Math.floor(Math.random() * semanticField.length)];
+                    words.splice(targetIndex, 0, semanticModifier);
+                    result = words.join(' ');
+                    console.log(`🔄 SEMANTIC: Injected "${semanticModifier}" at position ${targetIndex}`);
+                }
+                
+                return result;
+            }
+            
+            // LAYER 4: Stylistic transformations (poetic devices)
+            applyStylisticTransformations(text, memoryState) {
+                let result = text;
+                
+                // Apply alliterative mutations based on fitness
+                if (memoryState.fitness > 0.7) {
+                    const words = result.split(' ');
+                    // Find opportunities for alliteration enhancement
+                    for (let i = 0; i < words.length - 1; i++) {
+                        const word1 = words[i].toLowerCase();
+                        const word2 = words[i + 1].toLowerCase();
+                        
+                        if (word1[0] === word2[0] && Math.random() < 0.3) {
+                            // Enhance existing alliteration
+                            const alliterativeWords = ['blazing', 'brilliant', 'burning', 'breathing', 'beautiful'];
+                            if (word1[0] === 'b') {
+                                const enhancement = alliterativeWords[Math.floor(Math.random() * alliterativeWords.length)];
+                                words.splice(i, 0, enhancement);
+                                console.log(`🔄 STYLE: Enhanced alliteration with "${enhancement}"`);
+                                break;
+                            }
+                        }
+                    }
+                    result = words.join(' ');
+                }
+                
+                return result;
+            }
+            
+            // LAYER 5: Generational evolution markers
+            applyGenerationalEvolution(text, memoryState) {
+                let result = text;
+                const generation = Math.floor(memoryState.avgGeneration);
+                
+                // Add evolution-specific linguistic markers
+                if (generation >= 2) {
+                    const evolutionMarkers = ['transcendently', 'evolutionarily', 'metamorphically', 'quantumly'];
+                    const marker = evolutionMarkers[generation % evolutionMarkers.length];
+                    
+                    // Insert marker before first verb or adjective
+                    const words = result.split(' ');
+                    for (let i = 0; i < words.length; i++) {
+                        // Simple heuristic for verb/adjective detection
+                        if (words[i].endsWith('ing') || words[i].endsWith('ed') || words[i].endsWith('ly')) {
+                            words.splice(i, 0, marker);
+                            console.log(`🔄 EVOLUTION: Added generation ${generation} marker "${marker}"`);
+                            break;
+                        }
+                    }
+                    result = words.join(' ');
+                }
+                
+                return result;
+            }
+            
+            // Clear cache when evolution occurs
+            clearEvolutionCache() {
+                this.evolutionCache.clear();
+                console.log('🧹 NLP evolution cache cleared for new generation');
+            }
+        }
+
+        // ============================================================================
         // Poetry Engine
         // ============================================================================
                  class PoetryEngine {
              constructor() {
-                this.currentStyle = 'mystical'; // Always start with mystical
+               this.currentStyle = 'mystical'; // Always start with mystical
                  this.currentIndex = 0;
+                
+                // Initialize NLP processor for semantic evolution
+                this.nlpProcessor = new SemanticPoetryProcessor();
+                this.memoryStructure = null;
                  this.poems = {
                      contemplative: [
                          "I saw the best minds of my generation destroyed by madness",
@@ -4926,9 +5639,39 @@
             
             getNextLine() {
                 const currentPoem = this.poems[this.currentStyle];
-                const line = currentPoem[this.currentIndex];
+                const originalLine = currentPoem[this.currentIndex];
                 this.currentIndex = (this.currentIndex + 1) % currentPoem.length;
-                return line;
+                
+                console.log(`📖 Poetry Engine - Original: "${originalLine}"`);
+                console.log(`🔗 Memory connected: ${!!this.memoryStructure}, NLP available: ${this.nlpProcessor?.nlpAvailable}`);
+                
+                // Generate NLP-evolved derivative if memory structure is connected
+                if (this.memoryStructure && this.nlpProcessor && this.nlpProcessor.nlpAvailable) {
+                    const evolutionCycle = this.memoryStructure.evolutionCycle;
+                    console.log(`🧠 Generating NLP derivative for evolution cycle: ${evolutionCycle}`);
+                    const derivative = this.nlpProcessor.generateSemanticDerivative(originalLine, evolutionCycle);
+                    console.log(`✨ NLP Result: "${derivative}"`);
+                    return derivative;
+                }
+                
+                console.log(`⚠️ Using original line - no NLP processing`);
+                return originalLine;
+            }
+            
+            // Connect to dendritic memory structure
+            setMemoryStructure(memoryStructure) {
+                this.memoryStructure = memoryStructure;
+                if (this.nlpProcessor) {
+                    this.nlpProcessor.setMemoryStructure(memoryStructure);
+                }
+                console.log('🔗 Poetry engine connected to dendritic memory for NLP evolution');
+            }
+            
+            // Clear NLP cache when evolution occurs
+            clearEvolutionCache() {
+                if (this.nlpProcessor) {
+                    this.nlpProcessor.clearEvolutionCache();
+                }
             }
             
             setStyle(style) {
@@ -5032,7 +5775,7 @@
                     
                     // Update audio engine volume
                     if (beatMachine && beatMachine.audioEngine && beatMachine.audioEngine.masterGain) {
-                        const normalizedVolume = volume / 100;
+                        const normalizedVolume = beatMachine.audioEngine.validateAudioParam(volume / 100, 0.5, 0, 1);
                         beatMachine.audioEngine.masterGain.gain.setValueAtTime(
                             normalizedVolume, 
                             beatMachine.audioContext.currentTime
@@ -5044,8 +5787,9 @@
                 // Set initial volume
                 const initialVolume = parseInt(volumeSlider.value);
                 if (beatMachine && beatMachine.audioEngine && beatMachine.audioEngine.masterGain) {
+                    const safeInitialVolume = beatMachine.audioEngine.validateAudioParam(initialVolume / 100, 0.5, 0, 1);
                     beatMachine.audioEngine.masterGain.gain.setValueAtTime(
-                        initialVolume / 100, 
+                        safeInitialVolume, 
                         beatMachine.audioContext.currentTime
                     );
                 }
