@@ -3336,24 +3336,35 @@
              forceEvolutionaryChanges() {
                  // Force some dramatic changes to make evolution visually obvious
                  
+                 // Determine if this is desktop for enhanced effects
+                 const isDesktop = !this.isMobile && window.innerWidth >= 800;
+                 const enhancementMultiplier = isDesktop ? 2 : 1;
+                 
                  // 1. Randomly boost some node activations to create visual "evolution bursts"
-                 const randomNodes = this.dendriticNodes.sort(() => Math.random() - 0.5).slice(0, 5);
+                 const burstCount = Math.floor(5 * enhancementMultiplier);
+                 const randomNodes = this.dendriticNodes.sort(() => Math.random() - 0.5).slice(0, burstCount);
                  randomNodes.forEach(node => {
-                     node.activation = Math.min(1, node.activation + 0.3);
+                     node.activation = Math.min(1, node.activation + (0.3 * enhancementMultiplier));
                      node.lastActivationTime = Date.now();
                  });
                  
                  // 2. Change musical properties of some nodes to create audible evolution
-                 const musicalNodes = this.dendriticNodes.filter(n => n.musicalNote !== undefined).slice(0, 3);
+                 const musicalCount = Math.floor(3 * enhancementMultiplier);
+                 const musicalNodes = this.dendriticNodes.filter(n => n.musicalNote !== undefined).slice(0, musicalCount);
                  musicalNodes.forEach(node => {
                      node.musicalNote = Math.floor(Math.random() * 12);
                      node.harmonicWeight = Math.random();
                      node.rhythmicPattern = Math.floor(Math.random() * 8) + 1;
+                     // Desktop gets additional musical evolution
+                     if (isDesktop) {
+                         node.lastMusicGenerationTime = Date.now(); // Mark as recently musical
+                     }
                  });
                  
                  // 3. Create new connections between high-fitness nodes
                  const fitNodes = this.dendriticNodes.filter(n => n.fitness > 0.6);
-                 if (fitNodes.length >= 2) {
+                 const connectionCount = Math.floor(enhancementMultiplier);
+                 for (let i = 0; i < connectionCount && fitNodes.length >= 2; i++) {
                      const node1 = fitNodes[Math.floor(Math.random() * fitNodes.length)];
                      const node2 = fitNodes[Math.floor(Math.random() * fitNodes.length)];
                      
@@ -3368,12 +3379,23 @@
                  }
                  
                  // 4. Increase generation of some nodes to show evolution progress
-                 const evolvingNodes = this.dendriticNodes.filter(n => n.fitness > 0.5).slice(0, 2);
+                 const evolutionCount = Math.floor(2 * enhancementMultiplier);
+                 const evolvingNodes = this.dendriticNodes.filter(n => n.fitness > 0.5).slice(0, evolutionCount);
                  evolvingNodes.forEach(node => {
                      node.generation = (node.generation || 0) + 1;
                  });
                  
-                 console.log(`🔥 Forced evolutionary changes: ${randomNodes.length} activated, ${musicalNodes.length} musical changes, ${evolvingNodes.length} generations increased`);
+                 // 5. Desktop-only: Create dramatic visual effects
+                 if (isDesktop) {
+                     // Force some nodes to become highly active for visual drama
+                     const dramaticNodes = this.dendriticNodes.slice(0, 3);
+                     dramaticNodes.forEach(node => {
+                         node.activation = 0.9;
+                         node.fitness = Math.min(1, node.fitness + 0.2);
+                     });
+                 }
+                 
+                 console.log(`🔥 ${isDesktop ? 'DESKTOP' : 'MOBILE'} evolutionary changes: ${randomNodes.length} activated, ${musicalNodes.length} musical changes, ${evolvingNodes.length} generations increased`);
              }
              
              updateNodeFitness() {
@@ -5076,14 +5098,30 @@
             });
             
             // Optimize for mobile performance
-            if (beatMachine) {
-                // Reduce evolution frequency on mobile (but still faster than before)
-                if (beatMachine.markovChain) {
+            if (beatMachine && beatMachine.markovChain) {
+                if (beatMachine.isMobile) {
+                    // Reduce evolution frequency on mobile (but still faster than before)
                     beatMachine.markovChain.evolutionInterval = 8000; // 8 seconds instead of 5
+                } else {
+                    // Desktop gets even faster evolution for maximum visual impact
+                    beatMachine.markovChain.evolutionInterval = 4000; // 4 seconds for desktop
+                    console.log('🖥️ Desktop mode: Enhanced evolution every 4 seconds');
                 }
             }
             
             console.log('Mobile interactions setup complete');
+        }
+        
+        // Desktop-specific enhancements
+        if (!beatMachine.isMobile && beatMachine && beatMachine.markovChain) {
+            console.log('🖥️ Desktop mode: Maximum evolution frequency and visual effects enabled');
+            
+            // Add desktop-specific evolution logging
+            const originalEvolveNetwork = beatMachine.markovChain.evolveNetwork;
+            beatMachine.markovChain.evolveNetwork = function() {
+                console.log('🖥️ Desktop evolution triggered');
+                return originalEvolveNetwork.call(this);
+            };
         }
 
         // ============================================================================
